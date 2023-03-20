@@ -1,0 +1,492 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Securiti Elastic Scanner Provisioner
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: CloudFormation Stack Configuration
+        Parameters:
+          - StackSlug
+      - Label:
+          default: Securiti Elastic Scanner Configuration
+        Parameters:
+          - SecuritiControlVMAMIId
+          - InfraBundleS3URL
+          - LicenseKey
+      - Label:
+          default: IAM
+        Parameters:
+          - IAMRolePath
+          - ControlVMIAMRole
+      - Label:
+          default: Network Configuration
+        Parameters:
+          - VPCId
+          - ControlVMKeyPairName
+          - ControlVMPublicSubnetID
+          - ControlVMSecurityGroupID
+          - DatabaseSecurityGroupIDs
+          - DatabaseSubnetIDs
+      - Label:
+          default: S3 Configuration
+        Parameters:
+          - ControlStateBucket
+      - Label:
+          default: Elasticache Configuration
+        Parameters:
+          - ElasticacheEnable
+          - ElasticacheInstanceType
+          - ElasticacheNodeCount
+          - ElasticachePassword
+          - ElasticacheKMSKeyARN
+      - Label:
+          default: Repository Credentials
+        Parameters:
+          - RepositoryHost
+          - RepositoryPrefix
+          - RepositoryPassword
+          - RepositoryUsername
+      - Label:
+          default: Kubernetes Configuration
+        Parameters:
+          - KubeconfigS3URL
+          - KubernetesNamespace
+      - Label:
+          default: Custom Tags
+        Parameters:
+          - CustomTagParam
+    ParameterLabels:
+      ControlStateBucket:
+        default: Control State Bucket Name
+      ControlVMIAMRole:
+        default: Control VM IAM Role Name
+      ControlVMKeyPairName:
+        default: Control VM Key Pair Name
+      ControlVMPublicSubnetID:
+        default: Control VM Public Subnet ID
+      ControlVMSecurityGroupID:
+        default: Control VM Security Group ID
+      CustomTagParam:
+        default: Custom Tag Param
+      LicenseKey:
+        default: Elastic Scanner License key
+      DatabaseSecurityGroupIDs:
+        default: Database Security Group IDs
+      DatabaseSubnetIDs:
+        default: Database Subnet IDs
+      IAMRolePath:
+        default: IAM Role Path
+      InfraBundleS3URL:
+        default: Infra Bundle S3 URL
+      KubeconfigS3URL:
+        default: Kubeconfig S3 URL
+      KubernetesNamespace:
+        default: Kubernetes Namespace
+      RepositoryHost:
+        default: Repository Host
+      RepositoryPassword:
+        default: Repository Password
+      RepositoryUsername:
+        default: Repository Username
+      SecuritiControlVMAMIId:
+        default: Securiti Control VM AMI ID
+      StackSlug:
+        default: Stack Slug (Short, friendly name of the stack.)
+      VPCId:
+        default: VPC ID
+Parameters:
+  ControlStateBucket:
+    Description: Control State Bucket Name
+    Type: String
+  # ControlVMIAMRole:
+  #   Description: Control VM IAM Role Name
+  #   Type: String
+  ControlVMKeyPairName:
+    Description: Control VM Key Pair Name
+    Type: AWS::EC2::KeyPair::KeyName
+  ControlVMPublicSubnetID:
+    Description: Control VM Public Subnet ID
+    Type: AWS::EC2::Subnet::Id
+  ControlVMSecurityGroupID:
+    Description: Control VM Security Group ID
+    Type: AWS::EC2::SecurityGroup::Id
+  CustomTagParam:
+    Default: ''
+    Description: Custom Tag Param (e.g. key1=value1,key2=value2,...)
+    Type: String
+  DatabaseSecurityGroupIDs:
+    Description: Database Security Group IDs
+    Type: List<AWS::EC2::SecurityGroup::Id>
+  DatabaseSubnetIDs:
+    Description: Database Subnet IDs
+    Type: List<AWS::EC2::Subnet::Id>
+  # LicenseKey:
+  #   Description: Elastic Scanner License key
+  #   Type: String
+  #   MinLength: '1'
+  #   MaxLength: '1024'
+  #   AllowedPattern: '^[A-Za-z0-9=-_]*'
+  #   ConstraintDescription: Must be a base64 encoded license key
+  # ElasticacheEnable:
+  #   AllowedValues:
+  #     - 'Yes'
+  #     - 'No'
+  #   Default: 'No'
+  #   Type: String
+  # ElasticacheInstanceType:
+  #   Default: cache.r5.large
+  #   Description: Elasticache Instance Type
+  #   Type: String
+  # ElasticacheNodeCount:
+  #   Default: 2
+  #   Description: Number of Elasticache Nodes (2 for HA)
+  #   MaxValue: 2
+  #   MinValue: 1
+  #   Type: Number
+  # ElasticachePassword:
+  #   Description: Elasticache Password
+  #   NoEcho: true
+  #   Type: String
+  # ElasticacheKMSKeyARN:
+  #   Description: Elasticache KMS Key ARN
+  #   Type: String
+  # IAMRolePath:
+  #   Default: DISABLED
+  #   Description: IAM Role Path
+  #   Type: String
+  #   AllowedPattern: '^[A-Za-z0-9]+$'
+  InfraBundleS3URL:
+    Default: DISABLED
+    Description: Infra Bundle S3 URL (e.g. s3://<bucket>/<prefix>)
+    Type: String
+  # KubeconfigS3URL:
+  #   Default: DISABLED
+  #   Description: Kubeconfig S3 URL (e.g. s3://<bucket>/<prefix>)
+  #   Type: String
+  # KubernetesNamespace:
+  #   Default: securiti-edss
+  #   Description: Kubernetes Namespace
+  #   Type: String
+  # RepositoryHost:
+  #   Default: ''
+  #   Description: Repository Host
+  #   Type: String
+  # RepositoryPassword:
+  #   Default: ''
+  #   Description: Repository Password
+  #   NoEcho: true
+  #   Type: String
+  # RepositoryPrefix:
+  #   Default: securiti-scanner
+  #   Description: Repository Prefix
+  #   Type: String
+  # RepositoryUsername:
+  #   Default: ''
+  #   Description: Repository Username
+  #   Type: String
+  SecuritiControlVMAMIId:
+    Description: Securiti Control VM AMI ID (Amazon Linux 2, required packages [aws-cfn-bootstrap, awscli, python3, tar])
+    Type: AWS::EC2::Image::Id
+  StackSlug:
+    Default: securiti-edss
+    Description: Short name for the stack without spaces, can be same as stack name, should start with securiti-, contain no more than 23 characters.
+    ConstraintDescription: Can only consists of digits, lowercase letters and hyphens (-), must start with a lowercase letter.
+    Type: String
+    MinLength: 5
+    MaxLength: 23
+    AllowedPattern: '^securiti-[a-z0-9][a-z0-9\-]{0,12}[a-z0-9]$'
+  VPCId:
+    Description: VPC ID
+    Type: AWS::EC2::VPC::Id
+  # SNSKMSKeyARN:
+  #   Description: SNS KMS Key ARN
+  #   Type: String
+Resources:
+  ControlVM:
+    CreationPolicy:
+      ResourceSignal:
+        Count: 1
+        Timeout: PT2H30M
+    Type: 'AWS::EC2::Instance'
+    Metadata:
+      'AWS::CloudFormation::Init':
+        configSets:
+          Provision:
+            - DownloadPackages
+            - RenderConfig
+            - RenderTfvars
+            - ProvisionInfrastructure
+        DownloadPackages:
+          commands:
+            01_download_infra_bundle:
+              command: !Sub |
+                #!/usr/bin/env bash
+                set -o nounset
+                set -o errexit
+
+                BASE="/opt/provisioner"
+                export PATH="$PATH:/usr/local/bin:$BASE/bin"
+
+                INFRA_BUNDLE="${InfraBundleS3URL}"
+
+                if [[ "$INFRA_BUNDLE" == "DISABLED" ]]; then
+                  echo "=> [${StackSlug}] Skipping infrastructure bundle download because disabled."
+                  exit 0
+                fi
+
+                download_infra_bundle() {
+                  local archive="bundle.tar"
+                  cd "$BASE/../"
+                  aws s3 cp "$INFRA_BUNDLE" "$archive"
+                  tar -xf "$archive"
+                  rm -rf "$archive"
+                }
+
+                get_linux_name() {
+                  local name="Generic"
+                  if [[ -f /etc/os-release ]]; then
+                    name=$(grep -E '^NAME=' </etc/os-release | cut -d = -f 2 | sed ';s;";;g')
+                  fi
+                  echo "$name"
+                }
+
+                patch_bundle_changes() {
+                  if [[ "$(get_linux_name)" != "Ubuntu" ]]; then
+                    echo "=> [${StackSlug}] Skipped bundle patches since OS is not Ubuntu"
+                    return 0
+                  fi
+                  sed -i.bak ';s;export PATH="$BASE/bin:$BASE/venv/bin:/usr/local/bin:$PATH";export PATH="$PATH:/usr/local/bin:$BASE/bin";g' "$BASE/bin/sai_manage_infra"
+                  sed -i.bak ';s;#!/opt/provisioner/venv/bin/python3;#!/usr/bin/env python3;g' "$BASE/devops/terraform/cloud/generate_tfvars"
+                  sed -i.bak ';s;#!/opt/provisioner/venv/bin/python3;#!/usr/bin/env python3;g' "$BASE/devops/terraform/cloud/generate_mock_state"
+                }
+
+                download_infra_bundle
+                patch_bundle_changes
+#         RenderConfig:
+#           files:
+#             '/opt/provisioner/config.ini':
+#               content:
+#                 Fn::Sub:
+#                   - |
+#                     [common]
+#                     name = ${StackSlug}
+#                     stack_name = ${AWS::StackName}
+#                     stack_id = ${AWS::StackId}
+#                     stack_role = edss
+#                     license_key = ${LicenseKey}
+#                     replicated_license_url = DUMMY
+#                     region = ${AWS::Region}
+#                     account_id = ${AWS::AccountId}
+#                     namespace = ${KubernetesNamespace}
+#                     custom_tag = ${CustomTagParam}
+#                     kubeconfig_s3_url = ${KubeconfigS3URL}
+#                     alert_webhook = DISABLED
+#                     domain_name = dummy.domain
+#                     prometheus_url = DISABLED
+
+#                     [control-vm]
+#                     iam_role = ${ControlVMIAMRole}
+#                     security_group_access = 10.110.0.0/16
+#                     key_pair_name = ${ControlVMKeyPairName}
+#                     public_subnet_id = ${ControlVMPublicSubnetID}
+#                     security_group_id = ${ControlVMSecurityGroupID}
+#                     ami_id = ${SecuritiControlVMAMIId}
+
+#                     [vpc]
+#                     enable = No
+#                     cidr_base = 10.110
+#                     database_subnet_ids = ${JoinedDatabaseSubnetIDs}
+#                     id = ${VPCId}
+#                     database_security_group_id = ${JoinedDatabaseSecurityGroupIDs}
+
+#                     [eks]
+#                     enable = No
+#                     master_role_name = ${ControlVMIAMRole}
+#                     node_instance_type = m4.2xlarge
+#                     node_max_count = 20
+#                     node_role_name = ${ControlVMIAMRole}
+#                     node_key_name = ${ControlVMKeyPairName}
+#                     node_volume_size = 60
+
+#                     [ecr]
+#                     enable = No
+
+#                     # [elasticache]
+#                     # enable = ${ElasticacheEnable}
+#                     # instance_type = ${ElasticacheInstanceType}
+#                     # num_clusters = ${ElasticacheNodeCount}
+#                     # password = ${ElasticachePassword}
+#                     # kms_key_arn = ${ElasticacheKMSKeyARN}
+
+#                     [rds]
+#                     enable = No
+#                     dbname = xxxx
+#                     username = xxxx
+#                     password = xxxx
+#                     instance_type = db.r4.large
+#                     ha_enable = No
+#                     cluster_parameter_group_name = xxxx
+#                     db_parameter_group_name = xxxx
+#                     custom_tag = xxx=yyy
+#                     kms_key_arn = xxxx
+
+#                     [elasticsearch]
+#                     enable = No
+#                     volume_size = 60
+#                     instance_type = m5.large.elasticsearch
+#                     instance_type_master = c5.large.elasticsearch
+#                     kms_key_arn = xxxx
+
+#                     [logs-elasticsearch]
+#                     enable = No
+#                     volume_size = 60
+#                     instance_type = m5.large.elasticsearch
+#                     instance_type_master = c5.large.elasticsearch
+
+#                     # [repository]
+#                     # host = ${RepositoryHost}
+#                     # prefix = ${RepositoryPrefix}
+#                     # username = ${RepositoryUsername}
+#                     # password = ${RepositoryPassword}
+
+#                     [install]
+#                     type = airgap
+
+#                     [s3]
+#                     application_state_bucket = xxxx
+#                     control_state_bucket = ${ControlStateBucket}
+
+#                     [smtp]
+#                     host = xxxx
+#                     port = xxxx
+#                     username = xxxx
+#                     password = xxxx
+
+#                     [iam]
+#                     role_path = ${IAMRolePath}
+
+#                     [sns]
+#                     kms_key_arn = ${SNSKMSKeyARN}
+
+#                     [kms]
+#                     enable = No
+#                   - JoinedDatabaseSubnetIDs:
+#                       Fn::Join:
+#                         - ','
+#                         - !Ref DatabaseSubnetIDs
+#                     JoinedDatabaseSecurityGroupIDs:
+#                       Fn::Join:
+#                         - ','
+#                         - !Ref DatabaseSecurityGroupIDs
+#               mode: "000644"
+#               owner: root
+#               group: root
+#         RenderTfvars:
+#           commands:
+#             01_generate_config:
+#               command: !Sub |
+#                 #!/usr/bin/env bash
+#                 set -o nounset
+#                 set -o errexit
+
+#                 BASE="/opt/provisioner"
+#                 export PATH="$PATH:$BASE/bin"
+
+#                 echo "=> [${StackSlug}] Generating configuration"
+#                 sai_manage_infra config generate
+#         ProvisionInfrastructure:
+#           commands:
+#             01_provision_all:
+#               command: !Sub |
+#                 #!/usr/bin/env bash
+#                 set -o nounset
+#                 set -o errexit
+
+#                 BASE="/opt/provisioner"
+#                 export PATH="$PATH:$BASE/bin"
+
+#                 echo "=> [${StackSlug}] Provisioning infrastructure"
+#                 sai_manage_infra base apply
+#                 sai_manage_infra main apply
+#     Properties:
+#       UserData:
+#         Fn::Base64: !Sub |
+#           #!/usr/bin/env bash
+#           set -o nounset
+#           set -o errexit
+
+#           BASE="/opt/provisioner"
+#           mkdir -p "$BASE"
+
+#           install_basics() {
+#             yum update -y
+#             yum install -y python3 tar unzip
+#             # on Amazon Linux 2, python2 is default, so we need
+#             # to install python3 packages in virtualenv instead
+#             # of globally (prevents conflicts)
+#             # clean up older virtual environments if they exist
+#             rm -rf "$BASE/venv"
+#             # make python3 virtualenv
+#             python3 -m venv "$BASE/venv"
+#             # use pip inside that virtualenv to install boto3 & awscli
+#             "$BASE/venv/bin/pip" install --no-input boto3
+#             "$BASE/venv/bin/pip" install --no-input awscli
+#             # print the virtual environment's python's version
+#             "$BASE/venv/bin/python" --version
+#           }
+
+#           init_cfn_tools() {
+#             yum update -y aws-cfn-bootstrap
+#           }
+
+#           install_basics
+#           init_cfn_tools
+#           #
+#           # beyond this point, we can start using CloudFormation tools
+#           #
+#           export PATH="$PATH:/usr/local/bin:/opt/aws/bin:$BASE/bin"
+
+#           cf_signal() {
+#             cfn-signal -e "$1" \
+#               --stack "${AWS::StackName}" \
+#               --resource "ControlVM" \
+#               --region "${AWS::Region}"
+#           }
+
+#           cf_abort() {
+#             cf_signal 1
+#           }
+
+#           cf_initialize() {
+#             cfn-init -v \
+#               --stack "${AWS::StackName}" \
+#               --resource "ControlVM" \
+#               --configsets "Provision" \
+#               --region "${AWS::Region}"
+#           }
+
+#           trap 'cf_abort $LINENO' ERR
+
+#           cf_initialize || cf_abort
+#           cf_signal $?
+#       BlockDeviceMappings:
+#         - DeviceName: /dev/xvda
+#           Ebs:
+#             VolumeSize: 64
+#             VolumeType: gp2
+#       IamInstanceProfile: !Ref ControlVMIAMRole
+#       ImageId: !Ref SecuritiControlVMAMIId
+#       InstanceType: t2.medium
+#       KeyName: !Ref ControlVMKeyPairName
+#       SecurityGroupIds:
+#         - !Ref ControlVMSecurityGroupID
+#       SubnetId: !Ref ControlVMPublicSubnetID
+#       Tags:
+#         - Key: Name
+#           Value: !Sub ${StackSlug}-control-vm
+Outputs:
+  PublicIP:
+    Description: Public IP address of the newly created EC2 instance
+    Value: !GetAtt
+      - ControlVM
+      - PublicIp
